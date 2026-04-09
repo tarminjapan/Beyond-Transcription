@@ -2,6 +2,9 @@
 """
 Word変換CLI - 画像リンクを含むMarkdownファイルをWord（.docx）に変換するスクリプト
 
+bin/ ディレクトリまたはプロジェクトルートに pandoc が存在する場合、
+それを優先的に使用します。Windows / macOS / Linux 対応。
+
 Usage:
     python convert_to_docx.py --input <入力Markdownのパス> --output <出力Wordのパス>
 """
@@ -11,32 +14,23 @@ import os
 import subprocess
 import sys
 
+from bin_utils import find_executable, get_subprocess_kwargs
+
 
 def get_pandoc_path() -> str:
     """
     pandoc のパスを取得する
-    スクリプトと同じディレクトリに pandoc.exe が存在する場合はそれを優先し、
-    存在しない場合はシステムの pandoc を使用する
+    bin/ ディレクトリ → プロジェクトルート → システムPATH の順で検索する
 
     Returns:
-        pandoc のパス（ローカル優先、なければ "pandoc"）
+        pandoc のパス
     """
-    # スクリプトのあるディレクトリを取得
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    local_pandoc = os.path.join(script_dir, "pandoc.exe")
-
-    # ローカルの pandoc.exe が存在する場合はそれを優先
-    if os.path.isfile(local_pandoc):
-        return local_pandoc
-
-    # システムの pandoc を使用
-    return "pandoc"
+    return find_executable("pandoc")
 
 
 def check_pandoc() -> bool:
     """
     pandoc がインストールされているかチェックする
-    スクリプトと同じディレクトリの pandoc.exe を優先的に使用する
 
     Returns:
         pandoc が利用可能な場合 True
@@ -47,7 +41,7 @@ def check_pandoc() -> bool:
             [pandoc_path, "--version"],
             capture_output=True,
             text=True,
-            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+            **get_subprocess_kwargs(),
         )
         return result.returncode == 0
     except FileNotFoundError:
@@ -65,7 +59,7 @@ def convert_to_docx(input_path: str, output_path: str) -> bool:
     Returns:
         成功時 True、失敗時 False
     """
-    # パスの正規化（Windows環境でのパス区切り文字の統一）
+    # パスの正規化
     input_path = os.path.normpath(input_path)
     output_path = os.path.normpath(output_path)
 
@@ -91,7 +85,7 @@ def convert_to_docx(input_path: str, output_path: str) -> bool:
     # pandoc の存在確認
     if not check_pandoc():
         print(
-            "エラー: pandoc が見つかりません。pandoc をインストールしてPATHを通してください。",
+            "エラー: pandoc が見つかりません。bin/ ディレクトリまたはプロジェクトルートに配置するか、PATHを通してください。",
             file=sys.stderr,
         )
         return False
@@ -99,7 +93,7 @@ def convert_to_docx(input_path: str, output_path: str) -> bool:
     # 入力ファイルのディレクトリを取得（画像の相対パス解決用）
     input_dir = os.path.dirname(os.path.abspath(input_path))
 
-    # pandoc のパスを取得（ローカル優先）
+    # pandoc のパスを取得
     pandoc_path = get_pandoc_path()
 
     # pandoc コマンドの構築
@@ -130,7 +124,7 @@ def convert_to_docx(input_path: str, output_path: str) -> bool:
             capture_output=True,
             text=True,
             cwd=input_dir,
-            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+            **get_subprocess_kwargs(),
         )
 
         if result.returncode != 0:

@@ -2,9 +2,8 @@
 """
 画像抽出CLI - 動画の指定時間から1フレームの画像を切り出して保存するスクリプト
 
-【Windows環境専用】
-このスクリプトと同じディレクトリに ffmpeg.exe / ffprobe.exe が存在する場合、
-それらを優先的に使用します。
+bin/ ディレクトリまたはプロジェクトルートに ffmpeg / ffprobe が存在する場合、
+それらを優先的に使用します。Windows / macOS / Linux 対応。
 
 Usage:
     python extract_frame.py --video <動画ファイルのパス> --time <HH:MM:SS> --output <出力先画像ファイルのパス>
@@ -16,45 +15,29 @@ import os
 import subprocess
 import sys
 
-# Windows環境専用
-if sys.platform != "win32":
-    print("警告: このスクリプトはWindows環境専用です。", file=sys.stderr)
+from bin_utils import find_executable, get_subprocess_kwargs
 
 
 def get_ffmpeg_path() -> str:
     """
-    ffmpeg.exe のパスを取得する
-    スクリプトと同じディレクトリの ffmpeg.exe を優先し、なければPATHから探す
+    ffmpeg のパスを取得する
+    bin/ ディレクトリ → プロジェクトルート → システムPATH の順で検索する
 
     Returns:
-        ffmpeg.exe のパス（見つからない場合は "ffmpeg"）
+        ffmpeg のパス
     """
-    # スクリプトと同じディレクトリの ffmpeg.exe を確認
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    local_ffmpeg = os.path.join(script_dir, "ffmpeg.exe")
-    if os.path.isfile(local_ffmpeg):
-        return local_ffmpeg
-
-    # PATHから探す
-    return "ffmpeg"
+    return find_executable("ffmpeg")
 
 
 def get_ffprobe_path() -> str:
     """
-    ffprobe.exe のパスを取得する
-    スクリプトと同じディレクトリの ffprobe.exe を優先し、なければPATHから探す
+    ffprobe のパスを取得する
+    bin/ ディレクトリ → プロジェクトルート → システムPATH の順で検索する
 
     Returns:
-        ffprobe.exe のパス（見つからない場合は "ffprobe"）
+        ffprobe のパス
     """
-    # スクリプトと同じディレクトリの ffprobe.exe を確認
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    local_ffprobe = os.path.join(script_dir, "ffprobe.exe")
-    if os.path.isfile(local_ffprobe):
-        return local_ffprobe
-
-    # PATHから探す
-    return "ffprobe"
+    return find_executable("ffprobe")
 
 
 # ffmpeg / ffprobe のパスをキャッシュ
@@ -108,7 +91,7 @@ def check_ffmpeg() -> bool:
             [_FFMPEG_PATH, "-version"],
             capture_output=True,
             text=True,
-            creationflags=subprocess.CREATE_NO_WINDOW,
+            **get_subprocess_kwargs(),
         )
         return result.returncode == 0
     except FileNotFoundError:
@@ -139,7 +122,7 @@ def get_video_duration(video_path: str) -> float | None:
             cmd,
             capture_output=True,
             text=True,
-            creationflags=subprocess.CREATE_NO_WINDOW,
+            **get_subprocess_kwargs(),
         )
 
         if result.returncode != 0:
@@ -166,7 +149,7 @@ def extract_frame(video_path: str, time_str: str, output_path: str) -> bool:
     Returns:
         成功時 True、失敗時 False
     """
-    # パスの正規化（Windows環境でのパス区切り文字の統一）
+    # パスの正規化
     video_path = os.path.normpath(video_path)
     output_path = os.path.normpath(output_path)
 
@@ -197,7 +180,7 @@ def extract_frame(video_path: str, time_str: str, output_path: str) -> bool:
     # ffmpeg の存在確認
     if not check_ffmpeg():
         print(
-            "エラー: ffmpeg が見つかりません。ffmpeg.exe をスクリプトと同じディレクトリに配置するか、PATHを通してください。",
+            "エラー: ffmpeg が見つかりません。bin/ ディレクトリまたはプロジェクトルートに配置するか、PATHを通してください。",
             file=sys.stderr,
         )
         return False
@@ -237,7 +220,7 @@ def extract_frame(video_path: str, time_str: str, output_path: str) -> bool:
             ffmpeg_cmd,
             capture_output=True,
             text=True,
-            creationflags=subprocess.CREATE_NO_WINDOW,
+            **get_subprocess_kwargs(),
         )
 
         if result.returncode != 0:

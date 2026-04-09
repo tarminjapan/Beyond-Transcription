@@ -2,9 +2,8 @@
 """
 シーンチェンジ検出CLI - 動画からフレーム差分を用いてスライド切り替え等のシーンチェンジを自動検出するスクリプト
 
-【Windows環境専用】
-このスクリプトと同じディレクトリに ffmpeg.exe / ffprobe.exe が存在する場合、
-それらを優先的に使用します。
+bin/ ディレクトリまたはプロジェクトルートに ffmpeg / ffprobe が存在する場合、
+それらを優先的に使用します。Windows / macOS / Linux 対応。
 
 Usage:
     python detect_scene_changes.py --video <動画ファイルのパス> [--threshold <差分閾値>] [--interval <抽出間隔秒>] [--output <出力先パス>]
@@ -19,33 +18,23 @@ import tempfile
 
 from PIL import Image, ImageChops
 
-# Windows環境専用
-if sys.platform != "win32":
-    print("警告: このスクリプトはWindows環境専用です。", file=sys.stderr)
+from bin_utils import find_executable, get_subprocess_kwargs
 
 
 def get_ffmpeg_path() -> str:
     """
-    ffmpeg.exe のパスを取得する
-    スクリプトと同じディレクトリの ffmpeg.exe を優先し、なければPATHから探す
+    ffmpeg のパスを取得する
+    bin/ ディレクトリ → プロジェクトルート → システムPATH の順で検索する
     """
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    local_ffmpeg = os.path.join(script_dir, "ffmpeg.exe")
-    if os.path.isfile(local_ffmpeg):
-        return local_ffmpeg
-    return "ffmpeg"
+    return find_executable("ffmpeg")
 
 
 def get_ffprobe_path() -> str:
     """
-    ffprobe.exe のパスを取得する
-    スクリプトと同じディレクトリの ffprobe.exe を優先し、なければPATHから探す
+    ffprobe のパスを取得する
+    bin/ ディレクトリ → プロジェクトルート → システムPATH の順で検索する
     """
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    local_ffprobe = os.path.join(script_dir, "ffprobe.exe")
-    if os.path.isfile(local_ffprobe):
-        return local_ffprobe
-    return "ffprobe"
+    return find_executable("ffprobe")
 
 
 # ffmpeg / ffprobe のパスをキャッシュ
@@ -71,7 +60,7 @@ def get_video_duration(video_path: str) -> float | None:
             cmd,
             capture_output=True,
             text=True,
-            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+            **get_subprocess_kwargs(),
         )
         if result.returncode != 0:
             return None
@@ -120,7 +109,7 @@ def extract_frames_to_dir(
             ffmpeg_cmd,
             capture_output=True,
             text=True,
-            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+            **get_subprocess_kwargs(),
         )
         if result.returncode != 0:
             print(
